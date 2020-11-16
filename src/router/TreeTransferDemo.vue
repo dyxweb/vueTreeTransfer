@@ -3,6 +3,7 @@
     :title="['左侧标题', '右侧标题']"
     :allData="dataSource"
     :showSearch="true"
+    @onMove="onMove"
   >
   </tree-transfer>
 </template>
@@ -86,6 +87,12 @@
             ],
           }
         ],
+      }
+    },
+    methods: {
+      onMove (selectValues, categoryData) {
+        console.log(selectValues, 'selectValues');
+        console.log(categoryData, 'categoryData');
       }
     }
   };

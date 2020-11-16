@@ -23,30 +23,31 @@
         >
         </el-tree>
       </div>
-      <div class="dyx-transfer-bottom-select">
-        <el-checkbox
+      <!-- <div class="dyx-transfer-bottom-select">
+        <all-check
           :checked="generateCheckBox('left').checked"
           :indeterminate="generateCheckBox('left').indeterminate"
-          style="margin-right: 6px"
-          :disabled="generateCheckBox('left').checkAllDisabled"
-          @change="() => this.checkAll('left', generateCheckBox('left').type)"
+          :disabled="generateCheckBox('left').disabled"
+          :selectLength="generateCheckBox('left').selectLength"
+          :allLength="generateCheckBox('left').allLength"
+          :type="generateCheckBox('left').type"
+          direction="left"
+          @onCheck="this.checkAll"
         />
-        {{generateCheckBox('left').selectLength === 0 ?
-          `${generateCheckBox('left').allLength}项` :
-          `${generateCheckBox('left').selectLength}/${generateCheckBox('left').allLength}项`
-        }}
-      </div>
+      </div> -->
     </div>
     <div class="dyx-transfer-exchange">
       <el-button
-        type="primary"
         icon="el-icon-arrow-right"
+        :disabled="leftTree.checkedKeys.length === 0"
+        :type="leftTree.checkedKeys.length !== 0 ? 'primary' : 'normal'"
         @click="leftToRight"
       >
       </el-button>
       <el-button
-        type="primary"
         icon="el-icon-arrow-left"
+        :disabled="rightTree.checkedKeys.length === 0"
+        :type="rightTree.checkedKeys.length !== 0 ? 'primary' : 'normal'"
         @click="rightToLeft"
       >
       </el-button>
@@ -75,27 +76,30 @@
         >
         </el-tree>
       </div>
-      <div class="dyx-transfer-bottom-select">
-        <el-checkbox
+      <!-- <div class="dyx-transfer-bottom-select">
+        <all-check
           :checked="generateCheckBox('right').checked"
           :indeterminate="generateCheckBox('right').indeterminate"
-          style="margin-right: 6px"
-          :disabled="generateCheckBox('right').checkAllDisabled"
-          @change="() => this.checkAll('right', generateCheckBox('right').type)"
+          :disabled="generateCheckBox('right').disabled"
+          :selectLength="generateCheckBox('right').selectLength"
+          :allLength="generateCheckBox('right').allLength"
+          :type="generateCheckBox('right').type"
+          direction="right"
+          @onCheck="this.checkAll"
         />
-        {{generateCheckBox('right').selectLength === 0 ?
-          `${generateCheckBox('right').allLength}项` :
-          `${generateCheckBox('right').selectLength}/${generateCheckBox('right').allLength}项`
-        }}
-      </div>
+      </div> -->
     </div>
   </div>
 </template>
 
 <script>
   import { isLastLevelKey, mapCategoryData, getLastLevelData, filterCategoryData } from '../utils/index.js';
+  import AllCheck from './AllCheck';
   export default {
     name: 'TreeTransfer',
+    components: {
+      AllCheck,
+    },
     props: {
       allData: {
         type: Array,
@@ -150,7 +154,7 @@
     },
     data() {
       return {
-        dataSource: this.allData, // 全量的数据
+        dataSource: this.allData, // 全量的数据(从使用的组件中来)
         selectValues: this.values ? this.values : this.defaultValues, // 最后选择到右侧的values(values的优先级高于defaultValues)
         leftTree: {
           // 左侧剩余的数据
@@ -159,10 +163,9 @@
           filterSelectDataSource: [], // 去除选中的产品数据
           keys: [], // 选中的keys(包括已经选择移动到右边的keys)
           checkedKeys: [], // 受控选中的keys
-          expandedKeys: [], // 展开的项
-          autoExpandParent: true, // 自动展开父节点
           matchedKeys: [], // 匹配搜索内容的数据
-        },
+          checkBoxProps: {}, // 全选框的属性
+        }, // 左侧tree的数据
         rightTree: {
           // 右侧已选择的数据
           dataSource: [], // 展示的数据
@@ -170,10 +173,9 @@
           filterSelectDataSource: [], // 去除选中的产品数据
           keys: [], // 选中的keys(和checkedKeys相同)
           checkedKeys: [], // 受控选中的keys
-          expandedKeys: [], // 展开的项
-          autoExpandParent: true, // 自动展开父节点
           matchedKeys: [], // 匹配搜索内容的数据
-        },
+          checkBoxProps: {}, // 全选框的属性
+        }, // 右侧tree的数据
       };
     },
     created() {
@@ -202,7 +204,7 @@
         };
       },
 
-      // 选择checkbox时改变状态的方法
+      // 选择checkbox之后的通用操作方法
       operationOnCheck(keys, data, direction, rightToLeft, callback) {
         const { leftDisabled, rightDisabled } = this;
         const newData = filterCategoryData(keys, data, 'filter', rightToLeft ? leftDisabled : false); // 去除选中的数据
@@ -246,6 +248,8 @@
             // 如果rightToLeft为true时keys是原来的checkedKeys加selectValues，否则为lastLevelKey加selectValues
             keys: rightToLeft ? _.uniq([ ...this.selectValues, ...this.leftTree.checkedKeys ]) : _.uniq([ ...this.selectValues, ...lastLevelKey ])
           };
+          // 上面改变data之后没有办法受控控制Tree所以需要使用方法实现
+          this.$refs.leftTree.setCheckedKeys(rightToLeft ? this.leftTree.checkedKeys : lastLevelKey);
           this.$nextTick(() => {
             const newKeys = _.uniq([...lastLevelKey, ...this.selectValues]);
             this.operationOnCheck(newKeys, allData, direction, rightToLeft, callback);
@@ -257,6 +261,7 @@
             checkedKeys: lastLevelKey,
             keys: lastLevelKey,
           };
+          this.$refs.rightTree.setCheckedKeys(lastLevelKey);
           this.$nextTick(() => {
             this.operationOnCheck(lastLevelKey, this.rightTree.dataSource, direction, rightToLeft)
           });
@@ -265,7 +270,7 @@
 
       // 左向右的按钮(左侧Tree新的数据源是左侧Tree的filterSelectDataSource，右侧Tree新的数据源是左侧Tree的selectDataSource)
       leftToRight() {
-        const { leftTree: { selectDataSource, filterSelectDataSource }, onMove } = this;
+        const { leftTree: { selectDataSource, filterSelectDataSource } } = this;
         this.selectValues = this.leftTree.keys;
         this.leftTree = {
           ...this.leftTree,
@@ -275,6 +280,7 @@
           filterSelectDataSource: [],
           selectDataSource: [],
         }
+        this.$refs.leftTree.setCheckedKeys([]);
         this.rightTree = {
           ...this.rightTree,
           dataSource: selectDataSource,
@@ -287,13 +293,13 @@
           }
           // 返回给父组件数据
           const categoryData = JSON.stringify([leftTree.dataSource, rightTree.dataSource]);
-          onMove && onMove(selectValues, categoryData);
+          this.$emit("onMove", selectValues, categoryData);
         });
       },
 
       // 右向左的按钮
       rightToLeft() {
-        const { onMove, selectValues, rightTree: { keys } } = this;
+        const { selectValues, rightTree: { keys } } = this;
         // 已选择的keys中去除右侧新选择的keys
         const newLeftKeys = selectValues.filter(
           item => !keys.includes(item)
@@ -308,14 +314,53 @@
           filterSelectDataSource: [],
           checkedKeys: [],
         };
+        this.$refs.rightTree.setCheckedKeys([]);
         this.$nextTick(() => {
           // 右向左移动时，左侧的数据需要重新计算
             this.onCheck(newLeftKeys, 'left', true, () => {
               const { selectValues, leftTree, rightTree } = this;
               const categoryData = JSON.stringify([leftTree.dataSource, rightTree.dataSource]);
-              onMove && onMove(selectValues, categoryData);
+              this.$emit("onMove", selectValues, categoryData);
             });
         });
+      },
+
+      // 生成transfer的全选checkBox的属性值
+      generateCheckBox(direction) {
+        const { disabled, leftDisabled, rightDisabled, leftTree, rightTree } = this;
+        const directionDisabled = direction === 'left' ? leftDisabled : rightDisabled;
+        const operationState = direction === 'left' ? leftTree : rightTree;
+        const allLength = getLastLevelData(operationState.dataSource).length; // 所有最后一项的数据长度
+        const selectLength = operationState.checkedKeys.length; // 所选择的数据长度
+        const checkAllDisabled = disabled || directionDisabled || _.isEmpty(operationState.dataSource); // 全选的checkbox是否disabled
+        // 全选或者全不选的状态
+        const type = allLength === selectLength ? 'clear' : 'checkAll';
+        console.log({
+          direction,
+          selectLength,
+          type,
+          allLength,
+          checked: selectLength === 0 ? false : selectLength === allLength,
+          indeterminate: selectLength === 0 ? false : selectLength !== allLength,
+          disabled: checkAllDisabled,
+        });
+        // this[operationState] = {
+        //   ...this[operationState],
+        //   selectLength,
+        //   type,
+        //   allLength,
+        //   checked: selectLength === 0 ? false : selectLength === allLength,
+        //   indeterminate: selectLength === 0 ? false : selectLength !== allLength,
+        //   disabled: checkAllDisabled,
+        // }
+        return {
+          selectLength,
+          type,
+          allLength,
+          checked: selectLength === 0 ? false : selectLength === allLength,
+          indeterminate: selectLength === 0 ? false : selectLength !== allLength,
+          disabled: checkAllDisabled,
+        }
       },
 
       // checkBox的全选事件
@@ -331,7 +376,7 @@
           item => item.id
         );
         // 全选左侧时所有的key
-        const allKeys = getLastLevelData(this.dataSource).map(item => item.key);
+        const allKeys = getLastLevelData(this.dataSource).map(item => item.id);
         // 根据选择的方向生成对应的key
         const generateKeys = direction === 'left' ? allKeys : allRightTreeKeys;
         // 通过方法设置选中的keys
@@ -342,38 +387,8 @@
           filterSelectDataSource: [],
           checkedKeys: type === 'clear' ? [] : selectAllKeys,
           keys: type === 'clear' ? [] : generateKeys,
-        }
-      },
-
-      // 生成transfer的全选checkBox的属性值
-      generateCheckBox(direction) {
-        const { disabled, leftDisabled, rightDisabled, leftTree, rightTree } = this;
-        const directionDisabled = direction === 'left' ? leftDisabled : rightDisabled;
-        const operationState = direction === 'left' ? leftTree : rightTree;
-        const allLength = getLastLevelData(operationState.dataSource).length; // 所有最后一项的数据长度
-        const selectLength = operationState.checkedKeys.length; // 所选择的数据长度
-        const checkAllDisabled = disabled || directionDisabled || _.isEmpty(operationState.dataSource); // 全选的checkbox是否disabled
-        // 全选或者全不选的状态
-        const type = allLength === selectLength ? 'clear' : 'checkAll';
-        // console.log({
-        //   direction,
-        //   selectLength,
-        //   type,
-        //   checkAllDisabled,
-        //   allLength,
-        //   checked: selectLength === 0 ? false : selectLength === allLength,
-        //   indeterminate: selectLength === 0 ? false : selectLength !== allLength,
-        //   disabled: checkAllDisabled,
-        // });
-        return {
-          selectLength,
-          type,
-          checkAllDisabled,
-          allLength,
-          checked: selectLength === 0 ? false : selectLength === allLength,
-          indeterminate: selectLength === 0 ? false : selectLength !== allLength,
-          disabled: checkAllDisabled,
-        }
+        };
+        this.$refs[operationState].setCheckedKeys(type === 'clear' ? [] : selectAllKeys);
       },
     }
   };
