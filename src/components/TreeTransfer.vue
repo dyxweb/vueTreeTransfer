@@ -19,7 +19,7 @@
           show-checkbox
           node-key="id"
           ref="leftTree"
-          @check="(data, info) => onCheck(_.get(info, 'checkedKeys') || [], 'left', false)"
+          @check="(data, info) => onCheck(_.get(info, 'checkedKeys') || [], 'left')"
         >
         </el-tree>
       </div>
@@ -72,7 +72,7 @@
           show-checkbox
           node-key="id"
           ref="rightTree"
-          @check="(data, info) => onCheck(_.get(info, 'checkedKeys') || [], 'right', false)"
+          @check="(data, info) => onCheck(_.get(info, 'checkedKeys') || [], 'right')"
         >
         </el-tree>
       </div>
@@ -93,7 +93,7 @@
 </template>
 
 <script>
-  import { isLastLevelKey, mapCategoryData, getLastLevelData, filterCategoryData } from '../utils/index.js';
+  import { isLastLevelKey, disabledCategoryData, getLastLevelData, filterCategoryData } from '../utils/index.js';
   import AllCheck from './AllCheck';
   export default {
     name: 'TreeTransfer',
@@ -150,14 +150,14 @@
       onMove: {
         type: Function,
       },
-
     },
+
     data() {
       return {
-        dataSource: this.allData, // 全量的数据(从使用的组件中来)
-        selectValues: this.values ? this.values : this.defaultValues, // 最后选择到右侧的values(values的优先级高于defaultValues)
+        dataSource: this.allData, // 全量的数据(从使用的父组件中来)
+        selectValues: _.isEmpty(this.values) ? this.defaultValues : this.values, // 最后选择到右侧的values(values的优先级高于defaultValues)
         leftTree: {
-          // 左侧剩余的数据
+          // 左侧tree的数据
           dataSource: [], // 展示的数据
           selectDataSource: [], // 选中的产品数据
           filterSelectDataSource: [], // 去除选中的产品数据
@@ -165,9 +165,9 @@
           checkedKeys: [], // 受控选中的keys
           matchedKeys: [], // 匹配搜索内容的数据
           checkBoxProps: {}, // 全选框的属性
-        }, // 左侧tree的数据
+        },
         rightTree: {
-          // 右侧已选择的数据
+          // 右侧tree的数据
           dataSource: [], // 展示的数据
           selectDataSource: [], // 选中的产品数据
           filterSelectDataSource: [], // 去除选中的产品数据
@@ -175,85 +175,66 @@
           checkedKeys: [], // 受控选中的keys
           matchedKeys: [], // 匹配搜索内容的数据
           checkBoxProps: {}, // 全选框的属性
-        }, // 右侧tree的数据
+        },
       };
     },
+
     created() {
+      // 计算左右tree的数据
       this.changeDataSource(this.selectValues)
     },
+
     methods: {
-      // 初始的数据赋值(根据selectValues以及dataSources计算左右侧的展示数据，同时会处理disabled属性)
+      // 计算左右tree的数据并会处理disabled属性
       changeDataSource (filterValues) {
         const { allData, disabled, leftDisabled, rightDisabled } = this;
         let newDataSource = _.cloneDeep(allData); // 新的全量数据
-        // 如果设置disabled时将数据源全部disabled(数据结构参考Tree组件)
+        // // 如果设置disabled时将数据源全部disabled(数据结构参考Tree组件)
         if (disabled) {
-          newDataSource = mapCategoryData(allData);
+          newDataSource = disabledCategoryData(allData);
         }
-        // 有value时计算两侧的dataSource
+        // 计算两侧tree的dataSource
         const newLeftTreeDataSource = filterCategoryData(filterValues, newDataSource, 'filter', disabled || leftDisabled); // 左侧Tree的的展示数据
         const newRightTreeDataSource = filterCategoryData(filterValues, newDataSource, 'select', disabled || rightDisabled); // 右侧Tree的展示数据
+        this.selectValues = filterValues;
         this.dataSource = newDataSource;
         this.leftTree= {
-          ...this.leftTree,
           dataSource: newLeftTreeDataSource,
+          selectDataSource: [],
+          filterSelectDataSource: [],
+          keys: filterValues,
+          checkedKeys: [],
+          matchedKeys: [],
+          checkBoxProps: {},
         };
         this.rightTree= {
-          ...this.rightTree,
           dataSource: newRightTreeDataSource,
+          selectDataSource: [],
+          filterSelectDataSource: [],
+          keys: [],
+          checkedKeys: [],
+          matchedKeys: [],
+          checkBoxProps: {},
         };
+        this.$refs.rightTree && this.$refs.rightTree.setCheckedKeys([]);
+        this.$refs.leftTree && this.$refs.leftTree.setCheckedKeys([]);
       },
 
-      // 选择checkbox之后的通用操作方法
-      operationOnCheck(keys, data, direction, rightToLeft, callback) {
-        const { leftDisabled, rightDisabled } = this;
-        const newData = filterCategoryData(keys, data, 'filter', rightToLeft ? leftDisabled : false); // 去除选中的数据
-        const selectDataCategory = filterCategoryData(keys, data, 'select', rightDisabled); // 选中的数据
-        const changeState = direction === 'left' ? 'leftTree' : 'rightTree';
-        if (rightToLeft) {
-          // rightToLeft为true时会重新计算左侧Tree的selectDataSource和filterSelectDataSource
-          const { leftTree: { checkedKeys } } = this;
-          const newLeftKeys = [ ...checkedKeys, ...keys ];
-          const newLeftFilterData = filterCategoryData(newLeftKeys, data, 'filter', leftDisabled);
-          const newLeftSelectData = filterCategoryData(newLeftKeys, data, 'select', leftDisabled);
-          // 右面选中移动到左边时生成左边的数据
-          this[changeState] = {
-            ...this[changeState],
-            dataSource: newData,
-            selectDataSource: newLeftSelectData,
-            filterSelectDataSource: newLeftFilterData,
-          };
-          this.$nextTick(() => {
-            callback && callback()
-          });
-        } else {
-          this[changeState] = {
-            ...this[changeState],
-            filterSelectDataSource: newData,
-            selectDataSource: selectDataCategory,
-          };
-        }
-      },
-
-      // 选中时的方法(rightToLeft表示右边移动到左边时调用该函数)
-      onCheck(keys, direction, rightToLeft, callback) {
-        const { allData } = this;
+      // 选中时的方法
+      onCheck(keys, direction) {
+        const { dataSource } = this;
         // 选择的keys中是最后一级的keys
-        const lastLevelKey = keys.filter(item => isLastLevelKey(allData, item));
+        const lastLevelKey = keys.filter(item => isLastLevelKey(dataSource, item));
         if (direction === 'left') {
+          const newKeys = _.uniq([...this.selectValues, ...lastLevelKey]);
           this.leftTree = {
             ...this.leftTree,
-            // 如果rightToLeft为true时checkedKeys还是原来的checkedKeys，否则为lastLevelKey
-            checkedKeys: rightToLeft ? this.leftTree.checkedKeys : lastLevelKey,
-            // 如果rightToLeft为true时keys是原来的checkedKeys加selectValues，否则为lastLevelKey加selectValues
-            keys: rightToLeft ? _.uniq([ ...this.selectValues, ...this.leftTree.checkedKeys ]) : _.uniq([ ...this.selectValues, ...lastLevelKey ])
+            checkedKeys: lastLevelKey,
+            keys: newKeys,
           };
-          // 上面改变data之后没有办法受控控制Tree所以需要使用方法实现
-          this.$refs.leftTree.setCheckedKeys(rightToLeft ? this.leftTree.checkedKeys : lastLevelKey);
-          this.$nextTick(() => {
-            const newKeys = _.uniq([...lastLevelKey, ...this.selectValues]);
-            this.operationOnCheck(newKeys, allData, direction, rightToLeft, callback);
-          });
+          // 使用方法设置选中的keys，单纯设置属性无效，但是也需要设置，后续会设置的此数据计算
+          this.$refs.leftTree.setCheckedKeys(lastLevelKey);
+          this.operationOnCheck(newKeys, dataSource, direction);
         } else {
           // 选择的是右侧的Tree时只需要改变受控的keys然后调用operationOnCheck方法
           this.rightTree = {
@@ -262,10 +243,22 @@
             keys: lastLevelKey,
           };
           this.$refs.rightTree.setCheckedKeys(lastLevelKey);
-          this.$nextTick(() => {
-            this.operationOnCheck(lastLevelKey, this.rightTree.dataSource, direction, rightToLeft)
-          });
+          this.operationOnCheck(lastLevelKey, this.rightTree.dataSource, direction);
         }
+      },
+
+      // 选中之后计算左右数据的的通用操作方法
+      operationOnCheck(keys, data, direction) {
+        const { leftDisabled, rightDisabled } = this;
+        const newData = filterCategoryData(keys, data, 'filter', direction === 'left' ? leftDisabled : rightDisabled); // 去除选中的数据
+        const selectDataCategory = filterCategoryData(keys, data, 'select', direction === 'left' ? rightDisabled : leftDisabled); // 选中的数据
+        const changeState = direction === 'left' ? 'leftTree' : 'rightTree';
+        this[changeState] = {
+          ...this[changeState],
+          filterSelectDataSource: newData,
+          selectDataSource: selectDataCategory,
+        };
+
       },
 
       // 左向右的按钮(左侧Tree新的数据源是左侧Tree的filterSelectDataSource，右侧Tree新的数据源是左侧Tree的selectDataSource)
@@ -285,21 +278,19 @@
           ...this.rightTree,
           dataSource: selectDataSource,
         }
-        this.$nextTick(() => {
-          const { selectValues, leftTree, rightTree } = this;
-          // 左向右按钮点击之后，重新计算右边tree的相关state(兼容点击左向右按钮时右侧有选中项的情况)
-          if (!_.isEmpty(rightTree.checkedKeys)) {
-            this.operationOnCheck(rightTree.checkedKeys, rightTree.dataSource, 'right', false);
-          }
-          // 返回给父组件数据
-          const categoryData = JSON.stringify([leftTree.dataSource, rightTree.dataSource]);
-          this.$emit("onMove", selectValues, categoryData);
-        });
+        const { selectValues, leftTree, rightTree } = this;
+        // 如果右侧有选中项的情况重新计算右侧的数据
+        if (!_.isEmpty(rightTree.checkedKeys)) {
+          this.operationOnCheck(rightTree.checkedKeys, rightTree.dataSource, 'right');
+        }
+        // 返回给父组件方法的数据
+        const categoryData = JSON.stringify([leftTree.dataSource, rightTree.dataSource]);
+        this.$emit("onMove", this.selectValues, categoryData);
       },
 
       // 右向左的按钮
       rightToLeft() {
-        const { selectValues, rightTree: { keys } } = this;
+        const { selectValues, leftDisabled, rightDisabled, dataSource, rightTree: { keys }, leftTree: { checkedKeys } } = this;
         // 已选择的keys中去除右侧新选择的keys
         const newLeftKeys = selectValues.filter(
           item => !keys.includes(item)
@@ -308,21 +299,33 @@
         this.rightTree = {
           ...this.rightTree,
           dataSource: this.rightTree.filterSelectDataSource,
+          checkedKeys: [],
           keys: [],
           matchedKeys: [],
           selectDataSource: [],
           filterSelectDataSource: [],
-          checkedKeys: [],
         };
         this.$refs.rightTree.setCheckedKeys([]);
-        this.$nextTick(() => {
-          // 右向左移动时，左侧的数据需要重新计算
-            this.onCheck(newLeftKeys, 'left', true, () => {
-              const { selectValues, leftTree, rightTree } = this;
-              const categoryData = JSON.stringify([leftTree.dataSource, rightTree.dataSource]);
-              this.$emit("onMove", selectValues, categoryData);
-            });
-        });
+        const newLeftData = filterCategoryData(newLeftKeys, dataSource, 'filter', leftDisabled); // 左侧tree的新的数据源
+        this.leftTree = {
+          ...this.leftTree,
+          dataSource: newLeftData,
+          keys: [...newLeftKeys, ...this.leftTree.checkedKeys],
+        };
+        // 如果左侧有选择的keys重新计算左侧相关数据
+        if (!_.isEmpty(checkedKeys)) {
+          const allLeftCheckedKeys = [ ...checkedKeys, ...newLeftKeys ];
+          const newLeftFilterData = filterCategoryData(allLeftCheckedKeys, dataSource, 'filter', leftDisabled);
+          const newLeftSelectData = filterCategoryData(allLeftCheckedKeys, dataSource, 'select', leftDisabled);
+          // 右面选中移动到左边时生成左边的数据
+          this.leftTree = {
+            ...this.leftTree,
+            selectDataSource: newLeftSelectData,
+            filterSelectDataSource: newLeftFilterData,
+          };
+        }
+        const categoryData = JSON.stringify([this.leftTree.dataSource, this.rightTree.dataSource]);
+        this.$emit("onMove", this.selectValues, categoryData);
       },
 
       // 生成transfer的全选checkBox的属性值
@@ -379,17 +382,27 @@
         const allKeys = getLastLevelData(this.dataSource).map(item => item.id);
         // 根据选择的方向生成对应的key
         const generateKeys = direction === 'left' ? allKeys : allRightTreeKeys;
-        // 通过方法设置选中的keys
-        this.$refs[operationState].setCheckedKeys(type === 'clear' ? [] : selectAllKeys);
         this[operationState] = {
           ...this[operationState],
-          selectDataSource: directionDisabled ? mapCategoryData(this.dataSource) : this.dataSource,
+          selectDataSource: directionDisabled ? disabledCategoryData(this.dataSource) : this.dataSource,
           filterSelectDataSource: [],
           checkedKeys: type === 'clear' ? [] : selectAllKeys,
           keys: type === 'clear' ? [] : generateKeys,
         };
+        // 设置选中的keys
         this.$refs[operationState].setCheckedKeys(type === 'clear' ? [] : selectAllKeys);
       },
+    },
+
+    watch: {
+      allData() {
+        // dataSource数据源改变时重新计算
+        this.changeDataSource(this.selectValues);
+      },
+      values() {
+        // 受控的values改变时重新计算
+        this.changeDataSource(this.values);
+      }
     }
   };
 </script>
