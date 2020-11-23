@@ -6,6 +6,7 @@
       :showSearch="true"
       @onMove="onMove"
       :values="values"
+      :searchItems='["label", "id", "other"]'
       >
   </tree-transfer>
   <button @click="changeValue">改变value</button>
@@ -27,6 +28,7 @@
           {
             "label": '1',
             "id": "1",
+            'other': 'dyx',
             "children": [
               {
                 "label": "1-0",
@@ -113,6 +115,7 @@
               {
                 "label": "dyx1-0",
                 "id": "1-0",
+                'other': 'dyx'
               },
               {
                 "label": "dyx1-1",

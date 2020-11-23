@@ -9,6 +9,8 @@
           clearable
           size="mini"
           style="width: 90%"
+          @input="value => onSearch(value, 'left')"
+          v-model="leftTree.searchValue"
         >
         </el-input>
       </div>
@@ -20,6 +22,7 @@
           node-key="id"
           ref="leftTree"
           @check="(data, info) => onCheck(_.get(info, 'checkedKeys') || [], 'left')"
+          :filter-node-method="filterTree"
         >
         </el-tree>
       </div>
@@ -62,6 +65,8 @@
           clearable
           size="mini"
           style="width: 90%"
+          @input="value => onSearch(value, 'right')"
+          v-model="rightTree.searchValue"
         >
         </el-input>
       </div>
@@ -73,6 +78,7 @@
           node-key="id"
           ref="rightTree"
           @check="(data, info) => onCheck(_.get(info, 'checkedKeys') || [], 'right')"
+          :filter-node-method="filterTree"
         >
         </el-tree>
       </div>
@@ -165,6 +171,7 @@
           checkedKeys: [], // 受控选中的keys
           matchedKeys: [], // 匹配搜索内容的数据
           checkBoxProps: {}, // 全选框的属性
+          searchValue: '', // 搜索的受控制
         },
         rightTree: {
           // 右侧tree的数据
@@ -175,6 +182,7 @@
           checkedKeys: [], // 受控选中的keys
           matchedKeys: [], // 匹配搜索内容的数据
           checkBoxProps: {}, // 全选框的属性
+          searchValue: '', // 搜索的受控制
         },
       };
     },
@@ -206,6 +214,7 @@
           checkedKeys: [],
           matchedKeys: [],
           checkBoxProps: {},
+          searchValue: '',
         };
         this.rightTree= {
           dataSource: newRightTreeDataSource,
@@ -215,6 +224,7 @@
           checkedKeys: [],
           matchedKeys: [],
           checkBoxProps: {},
+          searchValue: '',
         };
         this.$refs.rightTree && this.$refs.rightTree.setCheckedKeys([]);
         this.$refs.leftTree && this.$refs.leftTree.setCheckedKeys([]);
@@ -326,6 +336,21 @@
         }
         const categoryData = JSON.stringify([this.leftTree.dataSource, this.rightTree.dataSource]);
         this.$emit("onMove", this.selectValues, categoryData);
+      },
+
+      // 搜索
+      onSearch(value, direction) {
+        const currentRef = direction === 'left' ? 'leftTree' : 'rightTree';
+        this.$refs[currentRef].filter(value);
+      },
+          
+      // tree的过滤
+      filterTree(value, data) {
+        if (value) {
+          return this.searchItems.some(searchItem => String(data[searchItem] || '').indexOf(value) > -1)
+        } else {
+          return true;
+        }
       },
 
       // 生成transfer的全选checkBox的属性值
