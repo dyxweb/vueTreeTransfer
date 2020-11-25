@@ -9,7 +9,7 @@
           clearable
           size="mini"
           style="width: 90%"
-          @input="value => onSearch(value, 'left')"
+          @input="value => debounceOnSearch(value, 'left')"
           v-model="leftTree.searchValue"
         >
         </el-input>
@@ -26,18 +26,19 @@
         >
         </el-tree>
       </div>
-      <!-- <div class="dyx-transfer-bottom-select">
-        <all-check
-          :checked="generateCheckBox('left').checked"
-          :indeterminate="generateCheckBox('left').indeterminate"
-          :disabled="generateCheckBox('left').disabled"
-          :selectLength="generateCheckBox('left').selectLength"
-          :allLength="generateCheckBox('left').allLength"
-          :type="generateCheckBox('left').type"
-          direction="left"
-          @onCheck="this.checkAll"
+      <div class="dyx-transfer-bottom-select">
+        <el-checkbox
+          :checked="leftTree.checkBoxProps.checked"
+          :indeterminate="leftTree.checkBoxProps.indeterminate"
+          style="margin-right: 6px"
+          :disabled="leftTree.checkBoxProps.disabled"
+          @change="checkAll('left', leftTree.checkBoxProps.type)"
         />
-      </div> -->
+        {{leftTree.checkedKeys.length === 0 ?
+          `${leftTree.checkBoxProps.allLength}项` :
+          `${leftTree.checkedKeys.length}/${leftTree.checkBoxProps.allLength}项`
+        }}
+      </div>
     </div>
     <div class="dyx-transfer-exchange">
       <el-button
@@ -65,7 +66,7 @@
           clearable
           size="mini"
           style="width: 90%"
-          @input="value => onSearch(value, 'right')"
+          @input="value => debounceOnSearch(value, 'right')"
           v-model="rightTree.searchValue"
         >
         </el-input>
@@ -82,30 +83,27 @@
         >
         </el-tree>
       </div>
-      <!-- <div class="dyx-transfer-bottom-select">
-        <all-check
-          :checked="generateCheckBox('right').checked"
-          :indeterminate="generateCheckBox('right').indeterminate"
-          :disabled="generateCheckBox('right').disabled"
-          :selectLength="generateCheckBox('right').selectLength"
-          :allLength="generateCheckBox('right').allLength"
-          :type="generateCheckBox('right').type"
-          direction="right"
-          @onCheck="this.checkAll"
+      <div class="dyx-transfer-bottom-select">
+        <el-checkbox
+          :checked="rightTree.checkBoxProps.checked"
+          :indeterminate="rightTree.checkBoxProps.indeterminate"
+          style="margin-right: 6px"
+          :disabled="rightTree.checkBoxProps.disabled"
+          @change="checkAll('right', rightTree.checkBoxProps.type)"
         />
-      </div> -->
+        {{rightTree.checkedKeys.length === 0 ?
+          `${rightTree.checkBoxProps.allLength}项` :
+          `${rightTree.checkedKeys.length}/${rightTree.checkBoxProps.allLength}项`
+        }}
+      </div>
     </div>
   </div>
 </template>
 
 <script>
   import { isLastLevelKey, disabledCategoryData, getLastLevelData, filterCategoryData } from '../utils/index.js';
-  import AllCheck from './AllCheck';
   export default {
     name: 'TreeTransfer',
-    components: {
-      AllCheck,
-    },
     props: {
       allData: {
         type: Array,
@@ -158,6 +156,11 @@
       },
     },
 
+    updated() {
+      // console.log(JSON.stringify(this.leftTree.checkBoxProps), 'left')
+      // console.log(JSON.stringify(this.rightTree.checkBoxProps), 'right')
+    },
+
     data() {
       return {
         dataSource: this.allData, // 全量的数据(从使用的父组件中来)
@@ -170,7 +173,13 @@
           keys: [], // 选中的keys(包括已经选择移动到右边的keys)
           checkedKeys: [], // 受控选中的keys
           matchedKeys: [], // 匹配搜索内容的数据
-          checkBoxProps: {}, // 全选框的属性
+          checkBoxProps: {
+            disabled: this.disabled || this.leftDisabled,
+            checked: false,
+            indeterminate: false,
+            allLength: 0,
+            type: 'checkAll'
+          }, // 全选框的属性
           searchValue: '', // 搜索的受控制
         },
         rightTree: {
@@ -181,7 +190,13 @@
           keys: [], // 选中的keys(和checkedKeys相同)
           checkedKeys: [], // 受控选中的keys
           matchedKeys: [], // 匹配搜索内容的数据
-          checkBoxProps: {}, // 全选框的属性
+          checkBoxProps: {
+            disabled: this.disabled || this.rightDisabled,
+            checked: false,
+            indeterminate: false,
+            allLength: 0,
+            type: 'checkAll'
+          }, // 全选框的属性
           searchValue: '', // 搜索的受控制
         },
       };
@@ -189,7 +204,9 @@
 
     created() {
       // 计算左右tree的数据
-      this.changeDataSource(this.selectValues)
+      this.changeDataSource(this.selectValues);
+      // 使用debounce优化搜索
+      this.debounceOnSearch = _.debounce(this.onSearch, 600);
     },
 
     methods: {
@@ -213,7 +230,13 @@
           keys: filterValues,
           checkedKeys: [],
           matchedKeys: [],
-          checkBoxProps: {},
+          checkBoxProps: {
+            disabled: this.disabled || this.leftDisabled,
+            checked: false,
+            indeterminate: false,
+            allLength: 0,
+            type: 'checkAll'
+          },
           searchValue: '',
         };
         this.rightTree= {
@@ -223,11 +246,20 @@
           keys: [],
           checkedKeys: [],
           matchedKeys: [],
-          checkBoxProps: {},
+          checkBoxProps: {
+            disabled: this.disabled || this.rightDisabled,
+            checked: false,
+            indeterminate: false,
+            allLength: 0,
+            type: 'checkAll'
+          },
           searchValue: '',
         };
         this.$refs.rightTree && this.$refs.rightTree.setCheckedKeys([]);
         this.$refs.leftTree && this.$refs.leftTree.setCheckedKeys([]);
+        // 计算checkBox显示的tree的所有项
+        this.getTreeLength('left');
+        this.getTreeLength('right');
       },
 
       // 选中时的方法
@@ -255,6 +287,7 @@
           this.$refs.rightTree.setCheckedKeys(lastLevelKey);
           this.operationOnCheck(lastLevelKey, this.rightTree.dataSource, direction);
         }
+        this.getTreeLength(direction);
       },
 
       // 选中之后计算左右数据的的通用操作方法
@@ -287,7 +320,9 @@
         this.rightTree = {
           ...this.rightTree,
           dataSource: selectDataSource,
-        }
+        };
+        this.getTreeLength('left');
+        this.getTreeLength('right');
         const { selectValues, leftTree, rightTree } = this;
         // 如果右侧有选中项的情况重新计算右侧的数据
         if (!_.isEmpty(rightTree.checkedKeys)) {
@@ -322,6 +357,8 @@
           dataSource: newLeftData,
           keys: [...newLeftKeys, ...this.leftTree.checkedKeys],
         };
+        this.getTreeLength('left');
+        this.getTreeLength('right');
         // 如果左侧有选择的keys重新计算左侧相关数据
         if (!_.isEmpty(checkedKeys)) {
           const allLeftCheckedKeys = [ ...checkedKeys, ...newLeftKeys ];
@@ -353,42 +390,26 @@
         }
       },
 
-      // 生成transfer的全选checkBox的属性值
-      generateCheckBox(direction) {
-        const { disabled, leftDisabled, rightDisabled, leftTree, rightTree } = this;
-        const directionDisabled = direction === 'left' ? leftDisabled : rightDisabled;
-        const operationState = direction === 'left' ? leftTree : rightTree;
-        const allLength = getLastLevelData(operationState.dataSource).length; // 所有最后一项的数据长度
-        const selectLength = operationState.checkedKeys.length; // 所选择的数据长度
-        const checkAllDisabled = disabled || directionDisabled || _.isEmpty(operationState.dataSource); // 全选的checkbox是否disabled
-        // 全选或者全不选的状态
+      // 计算tree的checkBox的相关数据
+      getTreeLength(direction) {
+        const operationData = direction === 'left' ? 'leftTree' : 'rightTree';
+        const operationDisabled = direction === 'left' ? this.leftDisabled : this.rightDisabled;
+        const allLength = getLastLevelData(this[operationData].dataSource).length; // 所有最后一项的数据长度
+        const disabled = this.disabled || operationDisabled || allLength === 0; // 是否disabled
+        const selectLength = this[operationData].checkedKeys.length; // 已经checked的长度
+        const checked = selectLength === 0 ? false : selectLength === allLength;
+        const indeterminate = selectLength === 0 ? false : selectLength !== allLength;
         const type = allLength === selectLength ? 'clear' : 'checkAll';
-        console.log({
-          direction,
-          selectLength,
-          type,
-          allLength,
-          checked: selectLength === 0 ? false : selectLength === allLength,
-          indeterminate: selectLength === 0 ? false : selectLength !== allLength,
-          disabled: checkAllDisabled,
-        });
-        // this[operationState] = {
-        //   ...this[operationState],
-        //   selectLength,
-        //   type,
-        //   allLength,
-        //   checked: selectLength === 0 ? false : selectLength === allLength,
-        //   indeterminate: selectLength === 0 ? false : selectLength !== allLength,
-        //   disabled: checkAllDisabled,
-        // }
-        return {
-          selectLength,
-          type,
-          allLength,
-          checked: selectLength === 0 ? false : selectLength === allLength,
-          indeterminate: selectLength === 0 ? false : selectLength !== allLength,
-          disabled: checkAllDisabled,
-        }
+        this[operationData] = {
+          ...this[operationData],
+          checkBoxProps: {
+            allLength,
+            disabled,
+            checked,
+            indeterminate,
+            type,
+          }
+        };
       },
 
       // checkBox的全选事件
@@ -413,6 +434,11 @@
           filterSelectDataSource: [],
           checkedKeys: type === 'clear' ? [] : selectAllKeys,
           keys: type === 'clear' ? [] : generateKeys,
+          checkBoxProps: {
+            ...this[operationState].checkBoxProps,
+            type: type === 'clear' ? 'checkAll' : 'clear',
+            checked: type === 'checkAll',
+          }
         };
         // 设置选中的keys
         this.$refs[operationState].setCheckedKeys(type === 'clear' ? [] : selectAllKeys);
@@ -420,14 +446,14 @@
     },
 
     watch: {
-      allData() {
+      allData(oldData, newData) {
         // dataSource数据源改变时重新计算
         this.changeDataSource(this.selectValues);
       },
       values() {
         // 受控的values改变时重新计算
         this.changeDataSource(this.values);
-      }
+      },
     }
   };
 </script>

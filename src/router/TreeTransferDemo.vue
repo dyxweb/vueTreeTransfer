@@ -9,8 +9,8 @@
       :searchItems='["label", "id", "other"]'
       >
   </tree-transfer>
-  <button @click="changeValue">改变value</button>
-  <button @click="changeData">改变data</button>
+  <!-- <button @click="changeValue">改变value</button> -->
+  <!-- <button @click="changeData">改变data</button> -->
   </div>
   
 </template>
