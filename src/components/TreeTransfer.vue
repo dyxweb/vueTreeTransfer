@@ -4,7 +4,7 @@
       <div class="dyx-transfer-box-title">{{_.get(title, 0, '选择框')}}</div>
       <div class="dyx-transfer-search" v-if="showSearch">
         <el-input
-          placeholder="请输入内容"
+          :placeholder="_.get(searchPlaceholder, 0)"
           suffix-icon="el-icon-search"
           clearable
           size="mini"
@@ -28,6 +28,7 @@
       </div>
       <div class="dyx-transfer-bottom-select">
         <el-checkbox
+          :value="leftTree.checkBoxProps.checked"
           :checked="leftTree.checkBoxProps.checked"
           :indeterminate="leftTree.checkBoxProps.indeterminate"
           style="margin-right: 6px"
@@ -58,10 +59,10 @@
     </div>
     <!-- 右侧tree -->
     <div class="dyx-transfer-box">
-      <div class="dyx-transfer-box-title">{{this._.get(title, 1, '已选择')}}</div>
+      <div class="dyx-transfer-box-title">{{_.get(title, 1, '已选择')}}</div>
       <div class="dyx-transfer-search" v-if="showSearch">
         <el-input
-          placeholder="请输入内容"
+          :placeholder="_.get(searchPlaceholder, 1)"
           suffix-icon="el-icon-search"
           clearable
           size="mini"
@@ -71,7 +72,7 @@
         >
         </el-input>
       </div>
-      <div class="dyx-transfer-no-data" v-if="this._.isEmpty(rightTree.dataSource)">{{notFoundContent}}</div>
+      <div class="dyx-transfer-no-data" v-if="_.isEmpty(rightTree.dataSource)">{{notFoundContent}}</div>
       <div class="dyx-transfer-tree" v-else>
         <el-tree
           :data="rightTree.dataSource"
@@ -85,6 +86,7 @@
       </div>
       <div class="dyx-transfer-bottom-select">
         <el-checkbox
+          :value="rightTree.checkBoxProps.checked"
           :checked="rightTree.checkBoxProps.checked"
           :indeterminate="rightTree.checkBoxProps.indeterminate"
           style="margin-right: 6px"
@@ -117,7 +119,7 @@
       },
       defaultValues: {
         type: Array,
-        default: []
+        default: () => []
       },
       values: {
         type: Array,
@@ -145,7 +147,7 @@
       },
       searchPlaceholder: {
         type: Array,
-        default: ['请输入', '请输入']
+        default: () => ['请输入', '请输入']
       },
       notFoundContent: {
         type: String,
@@ -154,11 +156,6 @@
       onMove: {
         type: Function,
       },
-    },
-
-    updated() {
-      // console.log(JSON.stringify(this.leftTree.checkBoxProps), 'left')
-      // console.log(JSON.stringify(this.rightTree.checkBoxProps), 'right')
     },
 
     data() {
@@ -197,7 +194,7 @@
             allLength: 0,
             type: 'checkAll'
           }, // 全选框的属性
-          searchValue: '', // 搜索的受控制
+          searchValue: '', // 搜索的受控值
         },
       };
     },
@@ -258,8 +255,8 @@
         this.$refs.rightTree && this.$refs.rightTree.setCheckedKeys([]);
         this.$refs.leftTree && this.$refs.leftTree.setCheckedKeys([]);
         // 计算checkBox显示的tree的所有项
-        this.getTreeLength('left');
-        this.getTreeLength('right');
+        this.getCheckBoxProps('left');
+        this.getCheckBoxProps('right');
       },
 
       // 选中时的方法
@@ -287,7 +284,7 @@
           this.$refs.rightTree.setCheckedKeys(lastLevelKey);
           this.operationOnCheck(lastLevelKey, this.rightTree.dataSource, direction);
         }
-        this.getTreeLength(direction);
+        this.getCheckBoxProps(direction);
       },
 
       // 选中之后计算左右数据的的通用操作方法
@@ -321,8 +318,8 @@
           ...this.rightTree,
           dataSource: selectDataSource,
         };
-        this.getTreeLength('left');
-        this.getTreeLength('right');
+        this.getCheckBoxProps('left');
+        this.getCheckBoxProps('right');
         const { selectValues, leftTree, rightTree } = this;
         // 如果右侧有选中项的情况重新计算右侧的数据
         if (!_.isEmpty(rightTree.checkedKeys)) {
@@ -357,8 +354,8 @@
           dataSource: newLeftData,
           keys: [...newLeftKeys, ...this.leftTree.checkedKeys],
         };
-        this.getTreeLength('left');
-        this.getTreeLength('right');
+        this.getCheckBoxProps('left');
+        this.getCheckBoxProps('right');
         // 如果左侧有选择的keys重新计算左侧相关数据
         if (!_.isEmpty(checkedKeys)) {
           const allLeftCheckedKeys = [ ...checkedKeys, ...newLeftKeys ];
@@ -391,7 +388,7 @@
       },
 
       // 计算tree的checkBox的相关数据
-      getTreeLength(direction) {
+      getCheckBoxProps(direction) {
         const operationData = direction === 'left' ? 'leftTree' : 'rightTree';
         const operationDisabled = direction === 'left' ? this.leftDisabled : this.rightDisabled;
         const allLength = getLastLevelData(this[operationData].dataSource).length; // 所有最后一项的数据长度
@@ -408,7 +405,7 @@
             checked,
             indeterminate,
             type,
-          }
+          },
         };
       },
 
@@ -438,7 +435,7 @@
             ...this[operationState].checkBoxProps,
             type: type === 'clear' ? 'checkAll' : 'clear',
             checked: type === 'checkAll',
-          }
+          },
         };
         // 设置选中的keys
         this.$refs[operationState].setCheckedKeys(type === 'clear' ? [] : selectAllKeys);
